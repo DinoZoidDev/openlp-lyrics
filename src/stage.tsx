@@ -190,12 +190,6 @@ function Stage() {
         const data = JSON.parse(event.data);
         switch (data.type) {
             case "titleLayout":
-                setConfig({
-                    ...config,
-                    horizontalAnchor: data.hAnchor,
-                    verticalAnchor: data.vAnchor,
-                });
-                break;
             case "lyricsLayout":
                 setConfig({
                     ...config,
