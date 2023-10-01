@@ -156,7 +156,7 @@ function Stage() {
     };
 
     const pollServer = () => {
-        fetch("/api/poll")
+        fetch("http://localhost:4316/api/poll")
             .then((response) => response.json())
             .then((data) => {
                 if (
@@ -232,10 +232,10 @@ function Stage() {
                 updateTitle();
                 break;
             case "nextSlide":
-                fetch("/api/controller/live/next");
+                fetch("http://localhost:4316/api/controller/live/next");
                 break;
             case "previousSlide":
-                fetch("/api/controller/live/previous");
+                fetch("http://localhost:4316/api/controller/live/previous");
                 break;
             case "lyrics":
                 if (!lyricsContainer) return;
@@ -243,12 +243,7 @@ function Stage() {
                     lyricsContainer.style.display = "none";
                     setConfig({ ...config, emptyString: true });
                 } else {
-                    if (
-                        config.crossfadeDuration === 0 ||
-                        config.emptyString ||
-                        config.alwaysHide ||
-                        config.lyricsHidden
-                    ) {
+                    if (hide) {
                         lyricsContainer.innerHTML = data.value;
                         if (config.emptyString) {
                             setConfig({ ...config, emptyString: false });
