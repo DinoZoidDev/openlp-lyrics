@@ -25,7 +25,6 @@ import { render } from "preact";
 import { useEffect, useRef, useState } from "preact/hooks";
 
 import "./stage.css";
-import "./base.css";
 
 import { configAtom } from "./utils/store";
 
@@ -42,151 +41,32 @@ const obsChannel = new BroadcastChannel("obs_openlp_channel");
 function Stage() {
     const [config, setConfig] = useAtom(configAtom);
 
-    const [currentSlides, setCurrentSlides] = useState<Slide[]>([]);
-    const [currentSlide, setCurrentSlide] = useState(0);
-    const [currentItem, setCurrentItem] = useState(null);
-    const [currentService, setCurrentService] = useState(null);
+    const [slides, setSlides] = useState<Slide[]>([]);
+    const [activeSlide, setActiveSlide] = useState<Slide>();
 
-    const titleRef = useRef<HTMLDivElement | null>(null);
-    const titleContainerRef = useRef<HTMLDivElement | null>(null);
-    const lyricsContainerRefs = [
-        useRef<HTMLDivElement | null>(null),
-        useRef<HTMLDivElement | null>(null),
-    ];
     const lyricsContainerRef = useRef<HTMLDivElement | null>(null);
+    const lyricsRef = useRef<HTMLDivElement | null>(null);
 
-    const updateTitle = () => {
-        if (!currentSlides === undefined) return;
-        const slide = currentSlides[currentSlide];
-        if (slide && slide.title) {
-            const titleDiv = titleRef.current;
-            if (!titleDiv) return;
-            let title = slide.title;
-            let validTitle = false;
-            let plugin: "bibles" | "songs";
-            if (!isNaN(parseInt(slide.text![0], 10))) {
-                plugin = "bibles";
-            } else {
-                plugin = "songs";
-            }
-            if (config.titleVisible[plugin]) {
-                if (plugin === "bibles") {
-                    const location = String(
-                        /\d? ?\w+ \d+:[0-9, -]+/.exec(title),
-                    ).trim();
-                    const bibleVersions = title.match(/[A-Z]{3,}/g);
-                    const uniqueVersions = [...new Set(bibleVersions)];
-                    let versions = "";
-                    if (bibleVersions !== null) {
-                        uniqueVersions.forEach((version) => {
-                            versions += version + ", ";
-                        });
-                        versions = versions.slice(0, -2);
-                    }
-                    title = location + " " + versions;
-                }
-                titleDiv.innerHTML = title;
-                validTitle = true;
-            }
-            if (!validTitle) {
-                titleDiv.style.display = "none";
-                setConfig({ ...config, titleHidden: true });
-            } else {
-                if (!config.lyricsHidden && !config.alwaysHide) {
-                    titleDiv.style.display = "block";
-                }
-                setConfig({ ...config, titleHidden: false });
-            }
-        }
+    const pollServer = async () => {
+        const response = await fetch("http://localhost:4316/api/poll");
+        const { results } = await response.json();
+
+        const slide = slides[results.slide];
+        setActiveSlide(slide);
+
+        setConfig({
+            ...config,
+            lyricsHidden:
+                results.display ||
+                results.theme ||
+                results.blank ||
+                config.alwaysHide,
+        });
     };
 
-    const loadSlides = () => {
-        fetch("/api/controller/live/text")
-            .then((response) => response.json())
-            .then((data) => {
-                const slides = data.results.slides as Slide[];
-                setCurrentSlides(slides);
-                setCurrentSlide(0);
-                let tag = "";
-                let lastChange = 0;
-                slides.forEach((slide, idx) => {
-                    const prevtag = tag;
-                    tag = slide.tag;
-                    if (tag !== prevtag) {
-                        lastChange = idx;
-                    } else {
-                        if (
-                            slide.text === slides[lastChange].text &&
-                            slides.length >= idx + (idx - lastChange)
-                        ) {
-                            let match = true;
-                            for (
-                                let idx2 = 0;
-                                idx2 < idx - lastChange;
-                                idx2++
-                            ) {
-                                if (
-                                    slides[lastChange + idx2].text !==
-                                    slides[idx + idx2].text
-                                ) {
-                                    match = false;
-                                    break;
-                                }
-                            }
-                            if (match) {
-                                lastChange = idx;
-                            }
-                        }
-                    }
-                    if (slide.selected) setCurrentSlide(idx);
-                });
-                updateTitle();
-                updateText();
-            });
-    };
-
-    const updateText = () => {
-        const slide = currentSlides[currentSlide];
-        if (!slide) return;
-        const slideData = {
-            type: "lyrics",
-            lines: slide.text?.split(/\n/g),
-        };
-        obsChannel.postMessage(JSON.stringify(slideData));
-    };
-
-    const pollServer = () => {
-        fetch("http://localhost:4316/api/poll")
-            .then((response) => response.json())
-            .then((data) => {
-                if (
-                    currentItem !== data.results.item ||
-                    currentService !== data.results.service
-                ) {
-                    setCurrentItem(data.results.item);
-                    setCurrentService(data.results.service);
-                    loadSlides();
-                } else if (currentSlide !== data.results.slide) {
-                    setCurrentSlide(parseInt(data.results.slide, 10));
-                    updateText();
-                }
-
-                const blankScreen =
-                    data.results.display === true ||
-                    data.results.theme === true ||
-                    data.results.blank === true;
-
-                setConfig({
-                    ...config,
-                    lyricsHidden: blankScreen || config.alwaysHide,
-                });
-            });
-    };
-
-    const channelReceive = (event: MessageEvent<any>) => {
+    const channelReceive = async (event: MessageEvent<any>) => {
         if (!event.data) return;
-        let lyricsContainer =
-            lyricsContainerRefs[config.lyricsContainerIndex].current;
+        let lyricsContainer = lyricsContainerRef.current;
         const data = JSON.parse(event.data);
         switch (data.type) {
             case "titleLayout":
@@ -210,32 +90,13 @@ function Stage() {
                 setConfig({ ...config, autoResize: data.value });
                 // updateLayout = true;
                 break;
-            case "titleVisibility":
-                if (data.song !== undefined) {
-                    setConfig({
-                        ...config,
-                        titleVisible: {
-                            ...config.titleVisible,
-                            songs: data.song,
-                        },
-                    });
-                }
-                if (data.bible !== undefined) {
-                    setConfig({
-                        ...config,
-                        titleVisible: {
-                            ...config.titleVisible,
-                            bibles: data.bible,
-                        },
-                    });
-                }
-                updateTitle();
-                break;
             case "nextSlide":
                 fetch("http://localhost:4316/api/controller/live/next");
+                pollServer();
                 break;
             case "previousSlide":
                 fetch("http://localhost:4316/api/controller/live/previous");
+                pollServer();
                 break;
             case "lyrics":
                 if (!lyricsContainer) return;
@@ -251,25 +112,8 @@ function Stage() {
                                 lyricsContainer.style.display = "block";
                             }
                         }
-                    } else {
-                        const nextLyricsContainer =
-                            lyricsContainerRefs[1 - config.lyricsContainerIndex]
-                                .current;
-                        lyricsContainer.style.opacity = "0";
-                        if (nextLyricsContainer) {
-                            nextLyricsContainer.innerHTML = data.value;
-                            nextLyricsContainer.style.opacity = "1";
-                        }
-
-                        setConfig({
-                            ...config,
-                            lyricsContainerIndex:
-                                1 - config.lyricsContainerIndex,
-                        });
-                        lyricsContainer = nextLyricsContainer;
                     }
                 }
-                resizeLayout();
                 break;
             default:
                 console.log("Unsupported message: " + data.type + ":");
@@ -278,38 +122,59 @@ function Stage() {
         }
     };
 
-    function resizeLayout() {
-        const lyricsContainer =
-            lyricsContainerRefs[config.lyricsContainerIndex].current;
-        if (
-            config.autoResize &&
-            lyricsContainer &&
-            lyricsContainerRef.current
-        ) {
-            const lyricsParent = lyricsContainerRef.current;
-            while (
-                lyricsContainer.offsetHeight > lyricsParent.clientHeight &&
-                lyricsParent.clientHeight > 0
-            ) {
-                const currentSize =
-                    window.getComputedStyle(lyricsContainer).fontSize;
-                const nextSize = parseInt(currentSize, 10) - 1 + "px";
-                lyricsContainer.style.fontSize = nextSize;
-            }
-        }
-    }
+    // const resizeLayout = () => {
+    //     const lyricsContainer = lyricsContainerRef.current;
+    //     const lyrics = lyricsRef.current;
+    //     if (config.autoResize && lyricsContainer && lyrics) {
+    //         while (
+    //             lyrics.offsetHeight > lyricsContainer.clientHeight &&
+    //             lyricsContainer.clientHeight > 0
+    //         ) {
+    //             const currentSize =
+    //                 window.getComputedStyle(lyricsContainer).fontSize;
+    //             const nextSize = parseInt(currentSize, 10) - 1 + "px";
+    //             lyricsContainer.style.fontSize = nextSize;
+    //         }
+    //     }
+    // };
 
     useEffect(() => {
-        setInterval(pollServer, 250);
-        pollServer();
+        let pollInterval = 0;
 
-        obsChannel.onmessage = channelReceive;
-        obsChannel.postMessage(JSON.stringify({ type: "init" }));
+        const async = async () => {
+            const response = await fetch(
+                "http://localhost:4316/api/controller/live/text",
+            );
+            const { results } = await response.json();
+            const slides = results.slides as Slide[];
+            setSlides(slides);
+            const slide = slides.find((slide) => slide.selected);
+            setActiveSlide(slide);
+            // resizeLayout();
+            // pollInterval = setInterval(pollServer, 250);
+            // pollServer();
+
+            obsChannel.addEventListener("message", channelReceive);
+            // obsChannel.postMessage(JSON.stringify({ type: "init" }));
+            return pollInterval;
+        };
+
+        async();
+
+        return () => clearInterval(pollInterval);
     }, []);
 
     const centerClasses = [
-        config.horizontalAnchor === "CENTER" ? "justify-center" : "justify-end",
-        config.verticalAnchor === "MIDDLE" ? "items-center" : "items-end",
+        config.horizontalAnchor === "CENTER"
+            ? "text-center justify-center"
+            : config.horizontalAnchor === "RIGHT"
+            ? "justify-end"
+            : "justify-start",
+        config.verticalAnchor === "MIDDLE"
+            ? "align-middle items-center"
+            : config.verticalAnchor === "BOTTOM"
+            ? "items-end"
+            : "items-start",
         "flex",
     ];
 
@@ -320,24 +185,21 @@ function Stage() {
         config.lyricsHidden;
 
     return (
-        <div id="content">
+        <div
+            id="lyrics-container"
+            ref={lyricsContainerRef}
+            className={clsx(
+                hide && "hidden",
+                centerClasses,
+                "absolute bottom-0 left-0 flex w-full",
+            )}
+        >
             <div
-                class="title-container"
-                ref={titleContainerRef}
-                className={clsx(centerClasses)}
+                ref={lyricsRef}
+                class="w-full whitespace-pre bg-black/50 p-4 text-3xl font-semibold text-white backdrop-blur-lg"
             >
-                <div class="title" ref={titleRef}></div>
+                {activeSlide?.text}
             </div>
-            <div
-                id="lyrics-container"
-                ref={lyricsContainerRef}
-                className={clsx(hide && "hidden", centerClasses)}
-            >
-                <div class="lyrics" ref={lyricsContainerRefs[0]}></div>
-            </div>
-            {/* <div class="title-container">
-				<div class="title"></div>
-			</div> */}
         </div>
     );
 }

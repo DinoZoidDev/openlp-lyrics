@@ -2,11 +2,9 @@ import { atom } from "jotai";
 
 export const configAtom = atom<{
     lyricsHidden: boolean;
-    titleHidden: boolean;
     emptyString: boolean;
     alwaysHide: boolean;
     crossfadeDuration: number;
-    lyricsContainerIndex: number;
     fadeDuration: number;
     titleVisible: {
         songs: boolean;
@@ -17,11 +15,9 @@ export const configAtom = atom<{
     verticalAnchor: "TOP" | "MIDDLE" | "BOTTOM";
 }>({
     lyricsHidden: false,
-    titleHidden: false,
     emptyString: false,
     alwaysHide: false,
     crossfadeDuration: 500,
-    lyricsContainerIndex: 0,
     fadeDuration: 900,
     titleVisible: {
         songs: false,

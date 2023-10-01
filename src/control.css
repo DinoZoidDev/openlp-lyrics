@@ -1,4 +1,23 @@
-body {
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    :root {
+        font-family: "Inter", sans-serif;
+        font-size: 0.875rem;
+
+        -webkit-font-smoothing: antialiased;
+        font-synthesis: none;
+    }
+    @supports (font-variation-settings: normal) {
+        :root {
+            font-family: "Inter var", sans-serif;
+        }
+    }
+}
+
+/* body {
 	padding: 8px;
 	background-color: #3a393a;
 	font-family: sans-serif;
@@ -105,11 +124,11 @@ legend {
 }
 
 legend:before {
-	content: "\2796"; /* minus sign */
+	content: "\2796";
 }
 
 .active-collapsible:before {
-	content: "\2795"; /* plus sign */
+	content: "\2795";
 }
 
 hr {
@@ -119,4 +138,4 @@ hr {
 
 label.disabled {
 	color: #7a797a;
-}
+} */
