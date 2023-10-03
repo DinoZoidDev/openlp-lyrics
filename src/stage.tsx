@@ -38,10 +38,13 @@ type Slide = {
 
 const obsChannel = new BroadcastChannel("obs_openlp_channel");
 
+const response = await fetch("http://localhost:4316/api/controller/live/text");
+const { results } = await response.json();
+const slides = results.slides as Slide[];
+
 function Stage() {
     const [config, setConfig] = useAtom(configAtom);
 
-    const [slides, setSlides] = useState<Slide[]>([]);
     const [activeSlide, setActiveSlide] = useState<Slide>();
 
     const lyricsContainerRef = useRef<HTMLDivElement | null>(null);
@@ -140,26 +143,13 @@ function Stage() {
 
     useEffect(() => {
         let pollInterval = 0;
+        const slide = slides.find((slide) => slide.selected);
+        setActiveSlide(slide);
 
-        const async = async () => {
-            const response = await fetch(
-                "http://localhost:4316/api/controller/live/text",
-            );
-            const { results } = await response.json();
-            const slides = results.slides as Slide[];
-            setSlides(slides);
-            const slide = slides.find((slide) => slide.selected);
-            setActiveSlide(slide);
-            // resizeLayout();
-            // pollInterval = setInterval(pollServer, 250);
-            // pollServer();
+        pollInterval = setInterval(pollServer, 250);
+        pollServer();
 
-            obsChannel.addEventListener("message", channelReceive);
-            // obsChannel.postMessage(JSON.stringify({ type: "init" }));
-            return pollInterval;
-        };
-
-        async();
+        obsChannel.addEventListener("message", channelReceive);
 
         return () => clearInterval(pollInterval);
     }, []);
@@ -204,4 +194,4 @@ function Stage() {
     );
 }
 
-render(<Stage />, document.getElementById("stage")!);
+render(<Stage />, document.getElementsByTagName("body")[0]!);
