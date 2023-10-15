@@ -17,5 +17,6 @@ export default defineConfig({
             //     entryFileNames: "libs/[name]-[hash].js",
             // },
         },
+        target: "ESNext",
     },
 });

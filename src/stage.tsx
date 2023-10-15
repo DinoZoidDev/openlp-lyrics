@@ -38,31 +38,38 @@ type Slide = {
 
 const obsChannel = new BroadcastChannel("obs_openlp_channel");
 
-const response = await fetch("http://localhost:4316/api/controller/live/text");
-const { results } = await response.json();
-const slides = results.slides as Slide[];
-
 function Stage() {
     const [config, setConfig] = useAtom(configAtom);
 
+    const [slides, setSlides] = useState<Slide[]>([]);
     const [activeSlide, setActiveSlide] = useState<Slide>();
+    const [activeItem, setActiveItem] = useState<string>();
 
     const lyricsContainerRef = useRef<HTMLDivElement | null>(null);
     const lyricsRef = useRef<HTMLDivElement | null>(null);
 
     const pollServer = async () => {
-        const response = await fetch("http://localhost:4316/api/poll");
-        const { results } = await response.json();
+        const pollResponse = await fetch("http://localhost:4316/api/poll");
+        const { results: pollResults } = await pollResponse.json();
 
-        const slide = slides[results.slide];
-        setActiveSlide(slide);
+        // if (activeItem !== pollResults.item) {
+        //     const response = await fetch(
+        //         "http://localhost:4316/api/controller/live/text",
+        //     );
+        //     const results = await response.json();
+        //     setSlides(results.slides as Slide[]);
+        //     setActiveItem(results.item);
+        // }
+
+        const slide = slides[pollResults.slide];
+        if (activeSlide !== slide) setActiveSlide(slide);
 
         setConfig({
             ...config,
             lyricsHidden:
-                results.display ||
-                results.theme ||
-                results.blank ||
+                pollResults.display ||
+                pollResults.theme ||
+                pollResults.blank ||
                 config.alwaysHide,
         });
     };
@@ -143,13 +150,25 @@ function Stage() {
 
     useEffect(() => {
         let pollInterval = 0;
-        const slide = slides.find((slide) => slide.selected);
-        setActiveSlide(slide);
 
-        pollInterval = setInterval(pollServer, 250);
-        pollServer();
+        (async () => {
+            const response = await fetch(
+                "http://localhost:4316/api/controller/live/text",
+            );
+            const { results } = await response.json();
+            const slides = results.slides as Slide[];
+            console.log(results.item);
+            setActiveItem(results.item);
+            setSlides(slides);
 
-        obsChannel.addEventListener("message", channelReceive);
+            const slide = slides.find((slide) => slide.selected);
+            if (activeSlide !== slide) setActiveSlide(slide);
+
+            pollInterval = setInterval(pollServer, 250);
+            pollServer();
+
+            obsChannel.addEventListener("message", channelReceive);
+        })();
 
         return () => clearInterval(pollInterval);
     }, []);
@@ -186,7 +205,7 @@ function Stage() {
         >
             <div
                 ref={lyricsRef}
-                class="w-full whitespace-pre bg-black/50 p-4 text-3xl font-semibold text-white backdrop-blur-lg"
+                class="w-full whitespace-pre p-4 text-7xl font-semibold text-white backdrop-blur-lg"
             >
                 {activeSlide?.text}
             </div>

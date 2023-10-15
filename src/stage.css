@@ -16,7 +16,7 @@
     }
 
     body {
-        @apply overflow-hidden;
+        @apply overflow-hidden bg-transparent;
     }
 }
 
